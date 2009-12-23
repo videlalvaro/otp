@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %% 
-%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
 %% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -16,28 +16,29 @@
 %% 
 %% %CopyrightEnd%
 %%
--module(simple).
+-module('ExpandTestCaps1').
 
--export([test/0]).
+-export([a_fun_name/1,
+	 a_less_fun_name/1,
+	 b_comes_after_a/1,
+	 'Quoted_fun_name'/0,
+	 'Quoted_fun_too'/0,
+	 '#weird-fun-name'/0]).
 
--ifdef(need_foo).
--export([foo/0]).
--endif.
+a_fun_name(X) ->
+    X.
 
-test() ->
-    passed.
+a_less_fun_name(X) ->
+    X.
 
-%% Conditional inclusion.
-%% Compile with [{d, need_foo}, {d, foo_value, 42}].
+b_comes_after_a(X) ->
+    X.
 
--ifdef(need_foo).
--include("simple.hrl").
+'Quoted_fun_name'() ->
+    whoopee.
 
-foo() ->
-    {?included_value, ?foo_value}.
+'Quoted_fun_too'() ->
+    too.
 
--endif.
-
--ifdef(include_generated).
--include("generated.hrl").
--endif.
+'#weird-fun-name'() ->
+    weird.
