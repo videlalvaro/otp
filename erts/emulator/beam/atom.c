@@ -323,7 +323,8 @@ init_atom_table(void)
     atom_space = 0;
     text_list = NULL;
 
-    atom_table_size = MAX(user_requested_atom_table_size, ATOM_LIMIT);
+    atom_table_size = MIN(MAX(user_requested_atom_table_size, ATOM_LIMIT),
+			  MAX_ATOM_INDEX + 1);
     erts_index_init(ERTS_ALC_T_ATOM_TABLE, &erts_atom_table,
 		    "atom_tab", ATOM_SIZE, atom_table_size, f);
     more_atom_space();
