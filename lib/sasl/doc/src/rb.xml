@@ -51,7 +51,7 @@
         <v>filter() = {Key, Value} | {Key, Value, no} | {Key, RegExp, re} | {Key, RegExp, re, no}</v>
         <v>Key = term()</v>
         <v>Value = term()</v>
-        <v>RegExp = Opaque datatype containing a compiled regular expression</v>
+        <v>RegExp = string() | {string, Options} | mp(), {mp(), Options}</v>
         <v>Dates = {DateFrom, DateTo} | {DateFrom, from} | {DateTo, to}</v>
         <v>DateFrom = DateTo = {date(), time()}</v>
         <v>date() and time() are the same type as in the <c>calendar</c> module</v>
@@ -86,23 +86,27 @@
 	   If you only want to filter only by dates, then you can provide the empty list as the Filters
 	   parameter.
 	</p>
+	<p>
+	  See <c>rb:grep/1</c> for more information on the RegExp parameter.
+	</p>
       </desc>
     </func>
     <func>
       <name>grep(RegExp)</name>
       <fsummary>Search the reports for a regular expression</fsummary>
       <type>
-        <v>RegExp = string()</v>
+        <v>RegExp = string() | {string, Options} | mp(), {mp(), Options}</v>
       </type>
       <desc>
         <p>All reports containing the regular expression <c>RegExp</c>
           are printed.
           </p>
-        <p><c>RegExp</c> is a string containing the regular
-          expression. Refer to the module <c>regexp</c> in the STDLIB 
-          reference  manual
-          for a definition of valid regular expressions. They are
-          essentially the same as the UNIX command <c>egrep</c>.
+        <p><c>RegExp</c> can be a string containing the regular
+          expression; a tuple with the string and the options for
+	  compilation; a compiled regular expression; a compiled
+	  regular expression and the options for running it.
+	  Refer to the module <c>re</c> and specially the function <c>re:run/3</c>
+	  for a definition of valid regular expressions and options.
           </p>
       </desc>
     </func>
@@ -131,23 +135,6 @@
           </p>
         <p>If no <c>Type</c> is given, all reports are listed.
           </p>
-      </desc>
-    </func>
-    <func>
-      <name>re(RegExp)</name>
-      <fsummary>Search the reports for a regular expression</fsummary>
-      <type>
-        <v>RegExp = Opaque datatype containing a compiled regular expression.</v>
-      </type>
-      <desc>
-        <p>All reports containing the regular expression <c>RegExp</c>
-          are printed.
-          </p>
-        <p><c>RegExp</c> is an opaque datatype that can be obtained by
-	  calling <c>re:compile/1</c> or <c>re:compile/2</c>. Refer to
-	  the module <c>re</c> for more information on the usage of
-	  compiled regular expressions.
-        </p>
       </desc>
     </func>
     <func>

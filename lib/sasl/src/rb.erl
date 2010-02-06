@@ -22,7 +22,7 @@
 
 %% External exports
 -export([start/0, start/1, stop/0, rescan/0, rescan/1]).
--export([list/0, list/1, show/0, show/1, grep/1, re/1, filter/1, filter/2, start_log/1, stop_log/0]).
+-export([list/0, list/1, show/0, show/1, grep/1, filter/1, filter/2, start_log/1, stop_log/0]).
 -export([h/0, help/0]).
 
 %% Internal exports
@@ -73,8 +73,6 @@ show(Type) when is_atom(Type) ->
 
 grep(RegExp) -> gen_server:call(rb_server, {grep, RegExp}, infinity).
 
-re(RegExp) -> gen_server:call(rb_server, {re, RegExp}, infinity).
-
 filter(Filters) when is_list(Filters) ->
     gen_server:call(rb_server, {filter, Filters}, infinity).
 
@@ -98,10 +96,9 @@ help() ->
     io:format("rb:list(Type)      - list all reports of type Type~n"),
     io:format("      currently supported types are:~n"),
     print_types(),
-    io:format("rb:grep(RegExp)    - print reports containing RegExp~n"),
-    io:format("rb:re(RegExp)      - print reports containing RegExp.~n"),
-    io:format("                     RegExp must be obtained using ~n"),
-    io:format("                     re:compile/1 or re:compile/2.~n"),
+    io:format("rb:grep(RegExp)      - print reports containing RegExp.~n"),
+    io:format("                     RegExp must be a valid argument for ~n"),
+    io:format("                     the function re:run/2 or re:run/3.~n"),
     io:format("rb:filter(Filters) - print reports matching Filters.~n"),
     io:format("                     reports must be proplists.~n"),
     io:format("      Filters is a list of tuples of the following form:~n"),
@@ -158,8 +155,8 @@ print_filters() ->
     io:format("      - {Key, Value, no}~n"),
     io:format("        excludes report containing {Key, Value}~n"),
     io:format("      - {Key, RegExp, re}~n"),
-    io:format("        includes report containing {Key, RegExp}~n"),
-    io:format("        RegExp must be obtained using re:compile/1~n"),
+    io:format("        RegExp must be a valid argument for ~n"),
+    io:format("        the function re:run/2 or re:run/3.~n"),
     io:format("      - {Key, RegExp, re, no}~n"),
     io:format("        excludes report containing {Key, RegExp}~n").
 
@@ -229,16 +226,22 @@ handle_call(show, _From, State) ->
     {reply, ok, State#state{device = NewDevice}};
 handle_call({grep, RegExp}, _From, State) ->
     #state{dir = Dir, data = Data, device = Device, abort = Abort, log = Log} = State,
-    NewDevice = print_grep_reports(Dir, Data, RegExp, Device, Abort, Log),
-    {reply, ok, State#state{device = NewDevice}};
-handle_call({re, RegExp}, _From, State) ->
-    #state{dir = Dir, data = Data, device = Device, abort = Abort, log = Log} = State,
-    NewDevice = print_re_reports(Dir, Data, RegExp, Device, Abort, Log),
-    {reply, ok, State#state{device = NewDevice}};
+    try print_grep_reports(Dir, Data, RegExp, Device, Abort, Log) of
+	NewDevice ->
+	    {reply, ok, State#state{device = NewDevice}}
+    catch
+	error:Error ->
+	    {reply, {error, Error}, State}
+    end;
 handle_call({filter, Filters}, _From, State) ->
     #state{dir = Dir, data = Data, device = Device, abort = Abort, log = Log} = State,
-    NewDevice = filter_all_reports(Dir, Data, Filters, Device, Abort, Log),
-    {reply, ok, State#state{device = NewDevice}}.
+    try filter_all_reports(Dir, Data, Filters, Device, Abort, Log) of
+	NewDevice ->
+	    {reply, ok, State#state{device = NewDevice}}
+    catch
+	error:Error ->
+	    {reply, {error, Error}, State}
+    end.
 
 terminate(_Reason, #state{device = Device}) ->
     close_device(Device).
@@ -669,51 +672,8 @@ check_rep(Fd, FilePosition, Device, RegExp, Number, Abort, Log) ->
     case read_rep_msg(Fd, FilePosition) of
 	{Date, Msg} ->
 	    MsgStr = lists:flatten(io_lib:format("~p",[Msg])),
-	    case regexp:match(MsgStr, RegExp) of
-		{match, _, _} ->
-		    io:format("Found match in report number ~w~n", [Number]),
-		    case catch rb_format_supp:print(Date, Msg, Device) of
-			{'EXIT', _} ->
-			    handle_bad_form(Date, Msg, Device, Abort, Log);
-			_ ->
-			    {proceed,Device}
-		    end;		
-		_ ->
-		    {proceed,Device}
-	    end;
-	_ ->
-	    io:format("rb: Cannot read from file~n"),
-	    {proceed,Device}
-    end.
-
-print_re_reports(_Dir, [], _RegExp, Device, _Abort, _Log) ->
-    Device;
-print_re_reports(Dir, Data, RegExp, Device, Abort, Log) ->
-    {Next,Device1} = print_re_report(Dir, Data, element(1, hd(Data)),
-				       Device, RegExp, Abort, Log),
-    if Next == abort ->
-	    Device1;
-       true ->
-	    print_re_reports(Dir, tl(Data), RegExp, Device1, Abort, Log)
-    end.
-
-print_re_report(Dir, Data, Number, Device, RegExp, Abort, Log) ->
-    {Fname, FilePosition} = find_report(Data, Number),
-    FileName = lists:concat([Dir, Fname]),
-    case file:open(FileName, [read]) of
-	{ok, Fd} when is_pid(Fd) ->
-	    check_re_rep(Fd, FilePosition, Device, RegExp, Number, Abort, Log);
-	_ ->
-	    io:format("rb: can't open file ~p~n", [Fname]),
-	    {proceed,Device}
-    end.
-
-check_re_rep(Fd, FilePosition, Device, RegExp, Number, Abort, Log) ->
-    case read_rep_msg(Fd, FilePosition) of
-	{Date, Msg} ->
-	    MsgStr = lists:flatten(io_lib:format("~p",[Msg])),
-	    case re:run(MsgStr, RegExp) of
-		{match, _} ->
+	    case run_re(MsgStr, RegExp) of
+		match ->
 		    io:format("Found match in report number ~w~n", [Number]),
 		    case catch rb_format_supp:print(Date, Msg, Device) of
 			{'EXIT', _} ->
@@ -727,6 +687,19 @@ check_re_rep(Fd, FilePosition, Device, RegExp, Number, Abort, Log) ->
 	_ ->
 	    io:format("rb: Cannot read from file~n"),
 	    {proceed,Device}
+    end.
+
+run_re(Subject, {Regexp, Options}) ->
+    run_re(Subject, Regexp, Options);
+run_re(Subject, Regexp) ->
+    run_re(Subject, Regexp, []).
+
+run_re(Subject, Regexp, Options) ->
+    case re:run(Subject, Regexp, Options) of
+        nomatch ->
+            nomatch;
+	_ ->
+            match
     end.
 
 filter_all_reports(_Dir, [], _Filters, Device, _Abort, _Log) ->
@@ -800,8 +773,9 @@ filter_report([{Key, RegExp, re}|T], Msg) ->
 	undefined ->
 	    false;
 	Value ->
-	    case re:run(Value, RegExp) of
-		{match, _} ->
+	    Subject = lists:flatten(io_lib:format("~p",[Value])),
+	    case run_re(Subject, RegExp) of
+		match ->
 		    filter_report(T, Msg);
 		_ -> false
 	    end
@@ -811,8 +785,9 @@ filter_report([{Key, RegExp, re, no}|T], Msg) ->
 	undefined ->
 	    false;
 	Value ->
-	    case re:run(Value, RegExp) of
-		{match, _} -> false;
+	    Subject = lists:flatten(io_lib:format("~p",[Value])),
+	    case run_re(Subject, RegExp) of
+		match -> false;
 		_ -> filter_report(T, Msg)
 	    end
     end.
